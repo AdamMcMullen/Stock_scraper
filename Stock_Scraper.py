@@ -1,9 +1,16 @@
 import requests
 import numpy as np
+import pandas as pd
 import matplotlib.pyplot as plt
-from datetime import datetime
+from datetime import datetime as dt
 import warnings
 
+
+"""
+To do
+make rev,op_inc,eps,bv all arrays with len 20
+
+"""
 
 # if you have an error the chromedriver and chrome versions might not match
 # to fix this go here https://chromedriver.chromium.org/downloads 
@@ -118,38 +125,102 @@ def dcf(ticker,symbol,region='can'):
         return data
     
     def load_data(ticker):
-        import pandas as pd
-        df=pd.read_csv(ticker+" Key Ratios.csv",header=2,index_col=0).replace(',','',regex=True)
-        return df
-
-    def clean_data(data):
+        try:
+            data=pd.read_csv(ticker+" Key Ratios.csv",header=2,index_col=0).replace(',','',regex=True)
+        except:
+            download_data(ticker)
+            data=pd.read_csv(ticker+" Key Ratios.csv",header=2,index_col=0).replace(',','',regex=True)
+            
         return data
+
+    def clean_data(df):
+        df=df.rename(columns={df.columns[-1]: pd.Timestamp("today").strftime("%Y-%m")},index={df.index[0]: "revenue",df.index[2]: "op income",df.index[5]: "eps",df.index[6]: "dividend",df.index[8]: "shares",df.index[9]: "book value",df.index[13]: "fcf"})
+        df=df.drop([df.index[15],df.index[16],df.index[26],df.index[35],df.index[36],df.index[57],df.index[58],df.index[64],df.index[65],df.index[86],df.index[91],df.index[92]])
+        df=df.astype(float)       
+        return df
                 
     def fit(x,y):
-        z = np.polyfit(x, y, 1)
+        idx = np.isfinite(x) & np.isfinite(y)
+        z = np.polyfit(x[idx], y[idx], 1)
         f = np.poly1d(z)
         return f
 
     print('-----------')
-    #download_data(ticker)
+    
     data=load_csv(ticker)
-    data_new=load_data(ticker)
+    df=load_data(ticker)
+    df=clean_data(df)
 
     #print(data)
     #print(data.keys())
     #print(data['Financials'].keys())
+    print(df)
 
+    def rolling_avg(x,period):
+        return x.rolling(window=period,min_periods=period).mean()
+
+    def get_change(x):
+        yoy=x.pct_change()
+        avg_3yr=rolling_avg(yoy,3)
+        avg_5yr=rolling_avg(yoy,5)
+        avg_10yr=rolling_avg(yoy,10)
+        
+        return pd.concat([yoy, avg_3yr, avg_5yr, avg_10yr],axis=1)
+
+
+    def get_growth():
+        print(df.iloc[38:42])
+        print(df.iloc[38:42].mean(axis=1,skipna=True))
+        print(type(get_change(df.loc['revenue'])))
+        try:
+            rev_growth=df.iloc[38:42].mean(axis=1,skipna=True)#precomputed by morningstar
+        except:
+            rev_growth=get_change(df.loc['revenue']).mean()
+
+        try:
+            inc_growth=df.iloc[43:47].mean(axis=1,skipna=True)#precomputed by morningstar
+        except:
+            inc_growth=get_change(df.loc['op income']).mean()
+
+        try:
+            eps_growth=df.iloc[53:57].mean(axis=1,skipna=True)#precomputed by morningstar
+        except:
+            eps_growth=get_change(df.loc['eps']).mean()
+
+        try:
+            fcf_growth=df.iloc[60].mean(skipna=True)#precomputed by morningstar
+        except:
+            fcf_growth=get_change(df.loc['fcf']).mean()
     
+        try:
+            bv_growth=get_change(df.loc['book value']).mean()
+        except:
+            bv_growth=df.iloc[32].mean(skipna=True)#roe
+            
+        rate=np.nanmean([np.average(rev_growth),np.average(inc_growth),np.average(eps_growth),np.average(fcf_growth),np.average(bv_growth)])
+        return rate
 
-    #print(data_new)
-    rev=data_new.iloc[0].astype(int)
-    rev_growth=rev.pct_change()
-    
-    print(data_new.iloc[38:42]) #precomputed by morningstar
-    print(rev_growth)#my compute
-    print(rev_growth.rolling(window=3,min_periods=3).mean()) #my compute
-   
+    #dates=data['Financials']['']
+    #dates[dates.index('TTM')] = pd.Timestamp("today").strftime("%Y-%m")
 
+
+#    print(df[0:15])
+#    print(df)
+#    print(df.index)
+#    print(df.columns)
+#    print(df.loc['revenue'])
+
+    #rev_past=df.iloc[0].astype(float)
+    #op_inc=df.iloc[2].astype(float)
+#if op_inc=='na':
+#    opc_inc=df.iloc[4].astype(float)
+    #eps_past=df.iloc[5].astype(float)
+    #div_past=df.iloc[6].astype(float)
+    #shares_past=df.iloc[8].astype(float)
+    #bv_past=df.iloc[9].astype(float)
+    #fcf_past=df.iloc[13].astype(float)
+#if fcfps=='na':
+#    fcfps=df.iloc[12].astype(float)/shares
 
 
     def compute_growth():
@@ -219,17 +290,32 @@ def dcf(ticker,symbol,region='can'):
 
         growth_bv=get_percent_change(bv_y)
         growth_bv_fit=get_percent_change(bv_fit[0]*bv_x+bv_fit[1])
-            rate = np.nanmean(np.array([np.average(string2float(growth_rev_1)),np.average(string2float(growth_inc_1)),np.average(string2float(growth_eps_1)),np.average(string2float(growth_fcf)),np.average(string2float(growth_bv))]))/100
+        rate = np.nanmean(np.array([np.average(string2float(growth_rev_1)),np.average(string2float(growth_inc_1)),np.average(string2float(growth_eps_1)),np.average(string2float(growth_fcf)),np.average(string2float(growth_bv))]))/100
         return rate
 
-    growth_rate=compute_growth()
+    #growth_rate=compute_growth()
+    growth_rate=get_growth()
+    print(growth_rate)
+    print(fcf_past)
+    year_num_past=np.arange(len(df.columns))
+    fcf_fit=fit(year_num_past,df.fcf)
+    print(fit(year_num_past,fcf_past))
+    plt.bar(year_num_past,fcf_past)
+    plt.plot(year_num_past,fcf_fit(year_num_past))
+    print(year_num_past[-1],fcf_past[-1])
+    plt.bar(year_num_past[-1],fcf_past[-1])
+    plt.ylabel('Free cash flow per share')
+    plt.xlabel('Year')
+
+    plt.show()
     
     discount_rate=0.15
     long_term_growth=0.02
     yrs_to_hold=10.0
-    base_fcf=fcf_y[-1]
-    base_eps=eps_y[-1]
-    date_range=data['Financials']['']
+    #base_fcf=fcf_y[-1]
+    #base_eps=eps_y[-1]
+    base_fcf=fcf[-1]
+    base_eps=eps[-1]
     years=np.arange(10)
 
     fcf=base_fcf*(1+growth_rate)**years
@@ -286,7 +372,7 @@ def dcf(ticker,symbol,region='can'):
     print('Current discount: ', round(current_discount*100,2), '%')
 
 
-dcf('BCE','BCE.TRT')
+dcf('JWEL','JWEL.TRT')
 quit()
 #TFSA ACCOUNT
 dcf('AMZN','AMZN','us')
