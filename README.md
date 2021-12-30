@@ -1,2 +1,2 @@
 # Stock_data
-Technical Analysis of Stocks
+Fundamental Analysis of Stocks
