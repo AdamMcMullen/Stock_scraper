@@ -8,7 +8,7 @@ import warnings
 
 """
 To do
-make rev,op_inc,eps,bv all arrays with len 20
+make rev,op_inc,eps,bv all arrays with len 20 (10 yrs forward 10 back)
 
 """
 
@@ -134,8 +134,8 @@ def dcf(ticker,symbol,region='can'):
         return data
 
     def clean_data(df):
-        df=df.rename(columns={df.columns[-1]: pd.Timestamp("today").strftime("%Y-%m")},index={df.index[0]: "revenue",df.index[2]: "op income",df.index[5]: "eps",df.index[6]: "dividend",df.index[8]: "shares",df.index[9]: "book value",df.index[13]: "fcf"})
-        df=df.drop([df.index[15],df.index[16],df.index[26],df.index[35],df.index[36],df.index[57],df.index[58],df.index[64],df.index[65],df.index[86],df.index[91],df.index[92]])
+        df = df.rename(columns={df.columns[-1]: pd.Timestamp("today").strftime("%Y-%m")}, index={df.index[0]: "revenue", df.index[2]: "op income", df.index[5]: "eps", df.index[6]: "dividend", df.index[8]: "shares", df.index[9]: "book value", df.index[13]: "fcf"})
+        df = df.drop([df.index[15], df.index[16], df.index[26], df.index[35], df.index[36], df.index[57], df.index[58], df.index[64], df.index[65], df.index[86], df.index[91], df.index[92]])
         df=df.astype(float)       
         return df
                 
@@ -147,7 +147,7 @@ def dcf(ticker,symbol,region='can'):
 
     print('-----------')
     
-    data=load_csv(ticker)
+    #data=load_csv(ticker)
     df=load_data(ticker)
     df=clean_data(df)
 
@@ -169,33 +169,30 @@ def dcf(ticker,symbol,region='can'):
 
 
     def get_growth():
-        print(df.iloc[38:42])
-        print(df.iloc[38:42].mean(axis=1,skipna=True))
-        print(type(get_change(df.loc['revenue'])))
         try:
-            rev_growth=df.iloc[38:42].mean(axis=1,skipna=True)#precomputed by morningstar
+            rev_growth=df.iloc[33:37].mean(axis=1,skipna=True)#precomputed by morningstar
         except:
             rev_growth=get_change(df.loc['revenue']).mean()
 
         try:
-            inc_growth=df.iloc[43:47].mean(axis=1,skipna=True)#precomputed by morningstar
+            inc_growth=df.iloc[38:42].mean(axis=1,skipna=True)#precomputed by morningstar
         except:
             inc_growth=get_change(df.loc['op income']).mean()
 
         try:
-            eps_growth=df.iloc[53:57].mean(axis=1,skipna=True)#precomputed by morningstar
+            eps_growth=df.iloc[48:52].mean(axis=1,skipna=True)#precomputed by morningstar
         except:
             eps_growth=get_change(df.loc['eps']).mean()
 
         try:
-            fcf_growth=df.iloc[60].mean(skipna=True)#precomputed by morningstar
+            fcf_growth=df.loc['Free Cash Flow Growth % YOY'].mean(skipna=True)#precomputed by morningstar 53
         except:
             fcf_growth=get_change(df.loc['fcf']).mean()
     
         try:
             bv_growth=get_change(df.loc['book value']).mean()
         except:
-            bv_growth=df.iloc[32].mean(skipna=True)#roe
+            bv_growth=df.loc['Return on Equity %'].mean(skipna=True)#roe
             
         rate=np.nanmean([np.average(rev_growth),np.average(inc_growth),np.average(eps_growth),np.average(fcf_growth),np.average(bv_growth)])
         return rate
@@ -223,80 +220,11 @@ def dcf(ticker,symbol,region='can'):
 #    fcfps=df.iloc[12].astype(float)/shares
 
 
-    def compute_growth():
-        def get_fit(x,y):
-            try:
-                y=[np.float(i.replace(',','')) for i in y[:-1]]
-                z = np.polyfit(x, y, 1)
-            except:
-                y=np.zeros(len(x))
-                z = [np.nan,0.0]
-           # f = np.poly1d(z)
-
-           # # calculate new x's and y's
-           # x_new = np.linspace(x[0], x[-1], 50)
-           # y_new = f(x_new)
-            return x,y,z#x_new,y_new
-
-        growth_rev_1=data['Revenue %']['Year over Year']
-        growth_rev_3=data['Revenue %']['3-Year Average']
-        growth_rev_5=data['Revenue %']['5-Year Average']
-        growth_rev_10=data['Revenue %']['10-Year Average']
-
-        growth_inc_1=data['Operating Income %']['Year over Year']
-        growth_inc_3=data['Operating Income %']['3-Year Average']
-        growth_inc_5=data['Operating Income %']['5-Year Average']
-        growth_inc_10=data['Operating Income %']['10-Year Average']
-
-        growth_eps_1=data['EPS %']['Year over Year']
-        growth_eps_3=data['EPS %']['3-Year Average']
-        growth_eps_5=data['EPS %']['5-Year Average']
-        growth_eps_10=data['EPS %']['10-Year Average']
-        growth_fcf=data['Key Ratios -> Cash Flow']['Free Cash Flow Growth % YOY']
-        
-        try:
-            bv_x,bv_y,bv_fit=get_fit(np.arange(10),data['Financials']['Book Value Per Share * USD'])
-            #inc_x,inc_y,inc_fit=get_fit(np.arange(10),data['Financials']['Operating Income USD Mil'])
-            #rev_x,rev_y,rev_fit=get_fit(np.arange(10),data['Financials']['Revenue USD Mil'])
-            eps_x,eps_y,eps_fit=get_fit(np.arange(10),data['Financials']['Earnings Per Share USD'])
-        except:
-            bv_x,bv_y,bv_fit=get_fit(np.arange(10),data['Financials']['Book Value Per Share * CAD'])
-            #inc_x,inc_y,inc_fit=get_fit(np.arange(10),data['Financials']['Operating Income CAD Mil'])
-            #rev_x,rev_y,rev_fit=get_fit(np.arange(10),data['Financials']['Revenue CAD Mil'])
-            eps_x,eps_y,eps_fit=get_fit(np.arange(10),data['Financials']['Earnings Per Share CAD'])
-
-        try:
-            fcf_x,fcf_y,fcf_fit=get_fit(np.arange(10),data['Financials']['Free Cash Flow Per Share * USD'])
-        except:
-            fcf_x,fcf_y,fcf_fit=get_fit(np.arange(10),data['Financials']['Free Cash Flow Per Share * CAD'])
-
-
-        def string2float(string):
-            flaot=np.empty(len(string))
-            for i, value in enumerate(string):
-                if value !='':
-                    flaot[i]=float(value)
-                else:
-                    with warnings.catch_warnings():
-                        warnings.simplefilter("ignore", category=RuntimeWarning)
-                        flaot[i]=np.nanmean(flaot[:i-1])
-                
-            
-            return flaot[:-1]
-        
-        def get_percent_change(x):
-            percent=[100.0 * x1 / x2 - 100 for x1, x2 in zip(x[1:], x)]
-            return percent
-
-        growth_bv=get_percent_change(bv_y)
-        growth_bv_fit=get_percent_change(bv_fit[0]*bv_x+bv_fit[1])
-        rate = np.nanmean(np.array([np.average(string2float(growth_rev_1)),np.average(string2float(growth_inc_1)),np.average(string2float(growth_eps_1)),np.average(string2float(growth_fcf)),np.average(string2float(growth_bv))]))/100
-        return rate
 
     #growth_rate=compute_growth()
     growth_rate=get_growth()
     print(growth_rate)
-    print(fcf_past)
+    print(fcf)
     year_num_past=np.arange(len(df.columns))
     fcf_fit=fit(year_num_past,df.fcf)
     print(fit(year_num_past,fcf_past))
@@ -363,7 +291,7 @@ def dcf(ticker,symbol,region='can'):
     print(ticker)
 #    print([np.average(string2float(growth_rev_1)),np.average(string2float(growth_inc_1)),np.average(string2float(growth_eps_1)),np.average(string2float(growth_fcf)),np.average(string2float(growth_bv))])
     #print(string2float(growth_rev_1),string2float(growth_inc_1),string2float(growth_eps_1),string2float(growth_fcf),string2float(growth_bv)
-    print(list(data.keys())[0].replace('\ufeffGrowth Profitability and Financial Ratios for ','')) 
+    #print(list(data.keys())[0].replace('\ufeffGrowth Profitability and Financial Ratios for ','')) 
     print('Growth rate:', round(growth_rate*100,2), '%')
     print('Free cash flow: $', round(base_fcf,2))
     print('Earnings per share: $', round(base_eps,2))
