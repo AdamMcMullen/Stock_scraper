@@ -105,25 +105,7 @@ def dcf(ticker,symbol,region='can'):
         time.sleep(1.5)
         driver.quit()
 
-        
 
-    def load_csv(ticker):
-        import csv
-        data={}
-        catagory=''
-        with open(ticker+" Key Ratios.csv", 'r',) as file:
-            reader = csv.reader(file, delimiter = ',')
-            for row in reader:
-                if len(row)==0:
-                    continue
-                elif len(row)==1:
-                    catagory=row[0]
-                    data[catagory]={}
-                else:
-                    data[catagory][row[0]]=row[1:]
-                    
-        return data
-    
     def load_data(ticker):
         try:
             data=pd.read_csv(ticker+" Key Ratios.csv",header=2,index_col=0).replace(',','',regex=True)
@@ -147,55 +129,64 @@ def dcf(ticker,symbol,region='can'):
 
     print('-----------')
     
-    #data=load_csv(ticker)
     df=load_data(ticker)
     df=clean_data(df)
 
     #print(data)
     #print(data.keys())
     #print(data['Financials'].keys())
+    print(ticker)
     print(df)
 
     def rolling_avg(x,period):
         return x.rolling(window=period,min_periods=period).mean()
 
     def get_change(x):
-        yoy=x.pct_change()
+        yoy=x.pct_change()*100
         avg_3yr=rolling_avg(yoy,3)
         avg_5yr=rolling_avg(yoy,5)
         avg_10yr=rolling_avg(yoy,10)
         
         return pd.concat([yoy, avg_3yr, avg_5yr, avg_10yr],axis=1)
 
-
     def get_growth():
         try:
-            rev_growth=df.iloc[33:37].mean(axis=1,skipna=True)#precomputed by morningstar
+            rev_growth=df.iloc[33:37]#precomputed by morningstar
+            rev_growth_avg=np.nanmean(rev_growth.mean(axis=1,skipna=True).values)
         except:
-            rev_growth=get_change(df.loc['revenue']).mean()
+            rev_growth=get_change(df.loc['revenue'])
+            rev_growth_avg = np.nanmean(rev_growth.mean().values)
 
         try:
-            inc_growth=df.iloc[38:42].mean(axis=1,skipna=True)#precomputed by morningstar
+            inc_growth=df.iloc[38:42]#precomputed by morningstar
+            inc_growth_avg = np.nanmean(inc_growth.mean(axis=1, skipna=True).values)
         except:
-            inc_growth=get_change(df.loc['op income']).mean()
+            inc_growth=get_change(df.loc['op income'])
+            inc_growth_avg = np.nanmean(inc_growth.mean().values)
 
         try:
-            eps_growth=df.iloc[48:52].mean(axis=1,skipna=True)#precomputed by morningstar
+            eps_growth=df.iloc[48:52]#precomputed by morningstar
+            eps_growth_avg = np.nanmean(eps_growth.mean(axis=1, skipna=True).values)
         except:
-            eps_growth=get_change(df.loc['eps']).mean()
+            eps_growth=get_change(df.loc['eps'])
+            eps_growth_avg = np.nanmean(eps_growth.mean().values)
 
         try:
-            fcf_growth=df.loc['Free Cash Flow Growth % YOY'].mean(skipna=True)#precomputed by morningstar 53
+            fcf_growth=df.loc['Free Cash Flow Growth % YOY']#precomputed by morningstar 53
+            fcf_growth_avg = np.nanmean(fcf_growth.mean(skipna=True).values)
         except:
-            fcf_growth=get_change(df.loc['fcf']).mean()
+            fcf_growth=get_change(df.loc['fcf'])
+            fcf_growth_avg = np.nanmean(fcf_growth.mean().values)
     
         try:
-            bv_growth=get_change(df.loc['book value']).mean()
+            bv_growth=get_change(df.loc['book value'])
+            bv_growth_avg = np.nanmean(bv_growth.mean().values)
         except:
-            bv_growth=df.loc['Return on Equity %'].mean(skipna=True)#roe
+            bv_growth=df.loc['Return on Equity %']#roe
+            bv_growth_avg = np.nanmean(bv_growth.mean(skipna=True).values)
             
-        rate=np.nanmean([np.average(rev_growth),np.average(inc_growth),np.average(eps_growth),np.average(fcf_growth),np.average(bv_growth)])
-        return rate
+        rate=np.nanmean([np.average(rev_growth_avg),np.average(inc_growth_avg),np.average(eps_growth_avg),np.average(fcf_growth_avg),np.average(bv_growth_avg)])
+        return rate,rev_growth, inc_growth,eps_growth,fcf_growth,bv_growth,rev_growth_avg, inc_growth_avg,eps_growth_avg,fcf_growth_avg,bv_growth_avg
 
     #dates=data['Financials']['']
     #dates[dates.index('TTM')] = pd.Timestamp("today").strftime("%Y-%m")
@@ -222,62 +213,75 @@ def dcf(ticker,symbol,region='can'):
 
 
     #growth_rate=compute_growth()
-    growth_rate=get_growth()
+    growth_rate,rev_growth, inc_growth,eps_growth,fcf_growth,bv_growth,rev_growth_avg, inc_growth_avg,eps_growth_avg,fcf_growth_avg,bv_growth_avg=get_growth()
     print(growth_rate)
-    print(fcf)
-    year_num_past=np.arange(len(df.columns))
-    fcf_fit=fit(year_num_past,df.fcf)
-    print(fit(year_num_past,fcf_past))
-    plt.bar(year_num_past,fcf_past)
-    plt.plot(year_num_past,fcf_fit(year_num_past))
-    print(year_num_past[-1],fcf_past[-1])
-    plt.bar(year_num_past[-1],fcf_past[-1])
-    plt.ylabel('Free cash flow per share')
-    plt.xlabel('Year')
+    #print(df.loc['fcf'])
 
-    plt.show()
     
     discount_rate=0.15
     long_term_growth=0.02
     yrs_to_hold=10.0
     #base_fcf=fcf_y[-1]
     #base_eps=eps_y[-1]
-    base_fcf=fcf[-1]
-    base_eps=eps[-1]
+    base_fcf=df.loc['fcf'][~np.isnan(df.loc['fcf'])][-1]
+    base_eps=df.loc['eps'][~np.isnan(df.loc['eps'])][-1]
     years=np.arange(10)
 
-    fcf=base_fcf*(1+growth_rate)**years
+    fcf=base_fcf*(1+growth_rate/100)**years
+    eps = base_eps * (1 + growth_rate / 100) ** years
 
-    
-    
 
+    #print(np.reshape(np.tile(rev_growth.columns.values,np.shape(rev_growth)[0]),np.shape(rev_growth)))
 
     def plot():
-        plt.plot(np.arange(10),string2float(growth_rev_1),'or', np.arange(10), np.ones(10)*np.average(string2float(growth_rev_1)),'r')
-        plt.plot(np.arange(10),string2float(growth_inc_1),'ob', np.arange(10), np.ones(10)*np.average(string2float(growth_inc_1)),'b')
-        plt.plot(np.arange(10),string2float(growth_eps_1),'og', np.arange(10), np.ones(10)*np.average(string2float(growth_eps_1)),'g')
-        plt.plot(np.arange(10),string2float(growth_fcf),'ok', np.arange(10), np.ones(10)*np.average(string2float(growth_fcf)),'k')
-        plt.plot(np.ones(10),np.ones(10)*growth_rate)
-        #plt.plot(np.arange(len(growth_bv)-1),string2float(growth_bv),'o', np.arange(len(growth_bv)-1), np.ones(len(growth_bv))*np.average(string2float(growth_bv)))
+        years_past = np.arange(len(df.columns))
+
+        print('Rev growth', rev_growth_avg)
+        print('Inc growth', inc_growth_avg)
+        print('Eps growth', eps_growth_avg)
+        print('Fcf growth', fcf_growth_avg)
+        print('Bv growth', bv_growth_avg)
+        print('Growth', growth_rate)
+        plt.plot(rev_growth.columns.values, np.asarray(rev_growth).T,'r')
+        plt.plot(years_past, np.ones(len(years_past))*rev_growth_avg,'r')
+        plt.plot(inc_growth.columns.values, np.asarray(inc_growth).T, 'b')
+        plt.plot(years_past, np.ones(len(years_past)) * inc_growth_avg, 'b')
+        plt.plot(eps_growth.columns.values, np.asarray(eps_growth).T, 'g')
+        plt.plot(years_past, np.ones(len(years_past)) * eps_growth_avg, 'g')
+        plt.plot(fcf_growth.T.columns.values, np.asarray(fcf_growth), 'c')
+        plt.plot(years_past, np.ones(len(years_past)) * fcf_growth_avg, 'c')
+        plt.plot(bv_growth.T.columns.values, np.asarray(bv_growth), 'y')
+        plt.plot(years_past, np.ones(len(years_past)) * bv_growth_avg, 'y')
+        plt.plot(years_past, np.ones(len(years_past))*growth_rate,'k')
         plt.xlabel('Year')
         plt.ylabel('Percent change')
         plt.show()
 
-        plt.bar(fcf_x,fcf_y)
-        plt.bar(fcf_x[-1],fcf_y[-1])
-        plt.bar(years+len(fcf_x),fcf)
+        print(df.loc['fcf'])
+        fcf_fit = fit(years_past, df.loc['fcf'])
+        plt.bar(years_past, df.loc['fcf'])
+        plt.plot(np.append(years_past,len(years_past)+years), fcf_fit(np.append(years_past,len(years_past)+years)))
+        plt.bar(years_past[-1], base_fcf)
+        plt.bar(len(years_past)+years,fcf)
         plt.ylabel('Free cash flow per share')
         plt.xlabel('Year')
         plt.show()
 
-        plt.bar(eps_x,eps_y)
-        plt.bar(eps_x[-1],eps_y[-1])
+        print(df.loc['eps'])
+        eps_fit = fit(years_past, df.loc['eps'])
+        plt.bar(years_past, df.loc['eps'])
+        plt.plot(np.append(years_past, len(years_past) + years),
+                 eps_fit(np.append(years_past, len(years_past) + years)))
+        plt.bar(years_past[-1], base_eps)
+        plt.bar(len(years_past) + years, eps)
+        plt.ylabel('Earnings per share')
+        plt.xlabel('Year')
         plt.show()
 
 
     plot()
-    dfcf=base_fcf*((1-((1+growth_rate)/(1+discount_rate))**(yrs_to_hold+1))/(1-((1+growth_rate)/(1+discount_rate)))-1)
-    dpfcf=base_fcf*(1+growth_rate)**yrs_to_hold*(1+long_term_growth)/(1+discount_rate)**(yrs_to_hold)/(discount_rate-long_term_growth)
+    dfcf=base_fcf*((1-((1+growth_rate/100)/(1+discount_rate))**(yrs_to_hold+1))/(1-((1+growth_rate/100)/(1+discount_rate)))-1)
+    dpfcf=base_fcf*(1+growth_rate/100)**yrs_to_hold*(1+long_term_growth)/(1+discount_rate)**(yrs_to_hold)/(discount_rate-long_term_growth)
     intrinsic_value=dfcf+dpfcf
     prices=get_prices(symbol)
     try:
@@ -292,7 +296,7 @@ def dcf(ticker,symbol,region='can'):
 #    print([np.average(string2float(growth_rev_1)),np.average(string2float(growth_inc_1)),np.average(string2float(growth_eps_1)),np.average(string2float(growth_fcf)),np.average(string2float(growth_bv))])
     #print(string2float(growth_rev_1),string2float(growth_inc_1),string2float(growth_eps_1),string2float(growth_fcf),string2float(growth_bv)
     #print(list(data.keys())[0].replace('\ufeffGrowth Profitability and Financial Ratios for ','')) 
-    print('Growth rate:', round(growth_rate*100,2), '%')
+    print('Growth rate:', round(growth_rate,2), '%')
     print('Free cash flow: $', round(base_fcf,2))
     print('Earnings per share: $', round(base_eps,2))
     print('Intrinsic value: $', round(intrinsic_value,2))
@@ -300,8 +304,6 @@ def dcf(ticker,symbol,region='can'):
     print('Current discount: ', round(current_discount*100,2), '%')
 
 
-dcf('JWEL','JWEL.TRT')
-quit()
 #TFSA ACCOUNT
 dcf('AMZN','AMZN','us')
 dcf('BA','BA','us')
